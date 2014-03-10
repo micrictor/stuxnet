@@ -89,54 +89,41 @@ bool LocateSTUBSection(PVOID *pRawSectionSTUB, INT32 *pSectionVirtualSize)
 {
 	PIMAGE_NT_HEADERS pImageNT; // esi@3
 	PIMAGE_SECTION_HEADER pImageSection; // edi@5
-	INT32 iCurrentSection; // ebx@5
-	UINT32 iSectionVirtualSize; // ecx@10
 	UINT32 *pSectionSTUB; // eax@11
 
-	/* --->> Check executable header "MZ" <<--- */
 	if(((PIMAGE_DOS_HEADER)hINSTANCE)->e_magic != MZ_HEADER)
 		return FALSE;
 	
-	/* --->> Get the address of the new executable header <<--- */
 	pImageNT = (PIMAGE_NT_HEADERS)((DWORD)hINSTANCE + ((PIMAGE_DOS_HEADER)hINSTANCE)->e_lfanew); // (hINSTANCE + 240)
 	
-	/* --->> Check new executable header "PE" <<--- */
 	if(pImageNT->Signature != PE_HEADER)
 		return FALSE;
 	
-	/* --->> Get the address of the PE Section Table <<--- */
 	pImageSection = (PIMAGE_SECTION_HEADER)(pImageNT->FileHeader.SizeOfOptionalHeader + (DWORD)pImageNT + sizeof(IMAGE_FILE_HEADER) + sizeof(DWORD)); // (PE header + 224 + 24)
-	iCurrentSection = 0;
 	
-	/* --->> Get the number of sections (5), if it is 0 or negative the function fails <<--- */
 	if(pImageNT->FileHeader.NumberOfSections <= 0)
 		return FALSE;
 	
-	/* --->> Search the section ".stub" where the encrypted dll is allocated, if not found the function failed <<--- */
+	int i = 0;
+	// Strcmp remains true when strs don't match
 	while(lstrcmpiA((LPCSTR)pImageSection->Name, ".stub"))
 	{
-		++iCurrentSection;
-		++pImageSection; // Next section
-		
-		if(iCurrentSection >= pImageNT->FileHeader.NumberOfSections) return FALSE;
+		i++;		
+		if(i >= pImageNT->FileHeader.NumberOfSections) 
+			return false;
+
+		pImageSection++; // Next section
 	}
-	
-	/* --->> Get the ".stub" section Virtual Size <<--- */
-	iSectionVirtualSize = pImageSection->SizeOfRawData; // (503.808 bytes)
-	
-	/* --->> Check if the Virtual Size is not too small (VirtualSize < 556)             <<--- */
-	if(iSectionVirtualSize < STUB_HEADER_LEN)
+		
+	if(pImageSection->SizeOfRawData < STUB_HEADER_LEN)
 		return FALSE;
 	
-	/* --->> Get the ".stub" section RVA (Relative Virtual Address) (hINSTANCE + 0x6000) <<--- */
-	/* --->> Check the header (DWORD) of the RVA section (0xAE39120D)                    <<--- */
 	pSectionSTUB = (UINT32 *)((UINT32)hINSTANCE + pImageSection->VirtualAddress);
 	if(*pSectionSTUB != STUB_INTEGRITY_MARK)
 		return FALSE;
 	
-	/* --->> Remove the header (4 bytes) and put the values in the pointers <<--- */
-	*pRawSectionSTUB     = pSectionSTUB++;
-	*pSectionVirtualSize = iSectionVirtualSize - sizeof(UINT32);
+	*pRawSectionSTUB     = pSectionSTUB + 0x4; // Stub w/o the header
+	*pSectionVirtualSize = pImageSection->SizeOfRawData - 0x4; // Size - header
 	
 	return TRUE;
 }
