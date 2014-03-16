@@ -21,6 +21,9 @@
 ** ASSEMBLY BLOCK 1.                                                    **
 *************************************************************************/                                    
 
+/* This entire file seems like one giant function that calls itself to get
+* the addresses for the strings.
+*/
 void __declspec(naked) __ASM_BLOCK1_0(void)
 {
 	__asm
@@ -34,7 +37,7 @@ void __declspec(naked) __ASM_BLOCK1_1(void)
 {
 	__asm
 	{
-		pop     edx // [edx] = "ZwMapViewOfSection", 0x00
+		pop     edx
 		push    ecx
 		add     ecx, 4
 		call    __ASM_REF_7

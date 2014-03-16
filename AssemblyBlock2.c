@@ -53,15 +53,19 @@ __declspec(naked) void __ASM_REF_3(void)
 
 	__REF_2:
 		push    edx
-		call    __ASM_REF_5
+		call    __ASM_REF_5 // Get some kind of system version struct in edx
+
 		cmp     dword ptr [edx+4], 0
 		jnz     short __REF_3
+
+		// Version < WinXP SP2
 		pop     edx
 		lea     edx, [esp+8]
 		int     2Eh             ; DOS 2+ internal - EXECUTE COMMAND
 								; DS:SI -> counted CR-terminated command string
 		jmp     short __REF_4
 
+		// Version > WinXP SP2
 	__REF_3:
 		pop     edx
 		lea     edx, [esp+8]
@@ -159,7 +163,7 @@ __declspec(naked) void __ASM_REF_3(void)
 
 	__REF_15:
 		cmp     [esp+8], 0AE1982AEh
-		jnz     short __REF_16
+		jnz     short __REF_16 // if esp+8 == 0xAE1982AE return false
 		xor     eax, eax
 		retn
 
@@ -214,6 +218,7 @@ __declspec(naked) void __ASM_REF_3(void)
 		mov     edx, [esp+0Ch]
 		mov     dword ptr [edx+20h], 80h
 
+		// return false
 	__REF_22:
 		xor     eax, eax
 		retn
@@ -268,10 +273,12 @@ __declspec(naked) void __ASM_REF_3(void)
 		jz      short __REF_28
 		mov     dword ptr [eax], 30h
 
+		// return false
 	__REF_28:
 		xor     eax, eax
 		retn
 
+		// return STATUS_INVALID_PARAMETER
 	__REF_29:
 		pop     edx
 		mov     eax, 0C000000Dh
@@ -299,6 +306,12 @@ __declspec(naked) void __ASM_REF_3(void)
 	}
 }
 
+/* __ASM_REF_4
+* @encryptedArray - Array to be decrypted
+*
+* Decrypts a supplied DWORD array w/ key 0xAE1979DD
+* Returns in edx
+*/
 __declspec(naked) void __ASM_REF_4(void)
 {
 	__asm
@@ -306,28 +319,48 @@ __declspec(naked) void __ASM_REF_4(void)
 		push    eax
 		push    esi
 		push    edi
+
+		// These 3 get effectively undone
 		push    ecx
 		push    edx
 		sub     esp, 1Ch
+
+		// Push the stack and the local stack size
 		mov     eax, esp
-		push    1Ch
+		push    1Ch 
 		push    eax
+
 		push    esp
-		call    __ASM_REF_5
-		call    dword ptr [edx+0Ch]
-		mov     edi, [esp]
-		add     edi, [esp+0Ch]
+		call    __ASM_REF_5 // edx = some struct
+		call    dword ptr [edx+0Ch] // I assume this doesn't mess w/ the stack
+
+		/* edi = esp before the stack alloc, directly after preservation pushes
+		*  esp = edi
+		*/
+		mov     edi, [esp] 			// edi = esp before the calls
+		add     edi, [esp+0Ch]  // edi = esp + 0x1c( undo stack alloc )
 		add     esp, 1Ch
+
+		// restore edx, ecx
 		pop     edx
 		pop     ecx
+
+		// String operations incoming
 		mov     esi, esp
 
 	__REF_0:
+		/* if( edi > esi )
+		*      return false;
+		*/
 		cmp     esi, edi
 		jnb     short __REF_1
+
+		// eax = [esi]
 		lodsd
 		xor     eax, 0AE1979DDh
 		lea     eax, [eax+4]
+
+		// if eax = esi, erase last byte and return
 		cmp     eax, esi
 		jnz     short __REF_0
 		lea     eax, [esi-4]
@@ -348,6 +381,7 @@ __declspec(naked) void __ASM_REF_4(void)
 /* __ASM_REF_5
 *  
 *	edx = DWORD( __ASM_REF_5 ) + 0x124
+* Some kind of sysinfo struct, as shown in __ASM_REF_3; line 56
 */
 __declspec(naked) void __ASM_REF_5(void)
 {
@@ -407,6 +441,9 @@ __declspec(naked) void __ASM_REF_6(void)
 	}
 }
 
+/* __ASM_REF_7
+* ecx - seems to be some kind of flag
+*/
 __declspec(naked) void __ASM_REF_7(void)
 {
 	__asm
