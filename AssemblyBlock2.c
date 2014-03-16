@@ -345,11 +345,15 @@ __declspec(naked) void __ASM_REF_4(void)
 	}
 }
 
+/* __ASM_REF_5
+*  
+*	edx = DWORD( __ASM_REF_5 ) + 0x124
+*/
 __declspec(naked) void __ASM_REF_5(void)
 {
 	__asm
 	{
-		call    $+5 // disasm block
+		call    $+5
 		pop     edx
 		add     edx, 124h
 		retn
@@ -409,51 +413,76 @@ __declspec(naked) void __ASM_REF_7(void)
 	{
 		push    eax
 		push    ecx
-		push    edx
-		call    __ASM_REF_5
+
+
+		push    edx 
+		call    __ASM_REF_5 // edx = DWORD (__ASM_REF_5) + 0x124
+
+		// push the first 4 bytes of edx( likely a function address )
 		mov     dword ptr [edx+4], 0
 		push    dword ptr [edx]
+
+		/* I'd need to see the binaries to see which function this is calling.
+		*
+		* We can assume from the rest of the function that it returns in eax, 
+		* and that the return should be nonzero.
+		*/
 		call    dword ptr [edx+14h]
+
 		pop     ecx
 		test    eax, eax
-		jz      __REF_3
+		jz      exitFunc
+
+		/* This seems like it's likely its own (inlined?) function.
+		* 	- massive amount of preservation
+		*		- makes a call to reassign edx to what it already is
+		* EAX is triple preserved. Why?
+		*/
 		push    eax
 		push    ecx
 		push    eax
 		push    esp
-		push    80h
-		push    18h
+		push    80h // 128
+		push    18h // 24
 		push    eax
-		call    __ASM_REF_5
+		call    __ASM_REF_5 // This shouldn't change the value of edx?
+
+		/* Returns in EAX, expected to be non-zero.
+		* This must alter the stack in some way, or the following is an opaque
+		* predicate. Nothing in previous code, or the aim of the program, would lend
+		* itself to such obfuscation.
+		*/
 		call    dword ptr [edx+10h]
-		pop     edx
+
+		pop     edx 
 		mov     edx, eax
 		pop     ecx
 		pop     eax
 		test    edx, edx
-		jz      __REF_3
+		jz      exitFunc // If ret = 0, exit
+
 		cmp     byte ptr [eax], 0B8h
-		jnz     __REF_3
+		jnz     exitFunc
 		cmp     byte ptr [eax+5], 0BAh
 		jz      short __REF_1
 		cmp     dword ptr [eax+5], 424548Dh
 		jnz     short __REF_0
 		cmp     dword ptr [eax+8], 0C22ECD04h
-		jnz     short __REF_3
+		jnz     short exitFunc
 		sub     ecx, eax
 		sub     ecx, 0Ah
 		mov     [eax+6], ecx
 		mov     byte ptr [eax+5], 0E8h
 		mov     byte ptr [eax+0Ah], 90h
-		jmp     short __REF_3
+		jmp     short exitFunc
 
 	__REF_0:
 		cmp     dword ptr [eax+7], 424548Dh
-		jnz     short __REF_3
+		jnz     short exitFunc
 		cmp     dword ptr [eax+0Bh], 0C015FF64h
-		jnz     short __REF_3
+		jnz     short exitFunc
 		cmp     dword ptr [eax+0Fh], 0C2000000h
-		jnz     short __REF_3
+		jnz     short exitFunc
 		push    edx
 		call    __ASM_REF_5
 		mov     dword ptr [edx+4], 1
@@ -475,19 +504,30 @@ __declspec(naked) void __ASM_REF_7(void)
 		pop     ebx
 		pop     eax
 		pop     esi
-		jmp     short __REF_3
+		jmp     short exitFunc
 
+	/*
+	* if( *(eax + 0xA) == 0xD2FF )
+	*		*(eax + 6) = ecx;
+	* else {
+	*		if( *(eax + 0xA) == 0x12FF ) {
+	*			*(eax + 0xB) = 0xD2;
+	*			*(eax + 6) = ecx;
+	*		}
+	* }
+	*/
 	__REF_1:
 		cmp     word ptr [eax+0Ah], 0D2FFh
 		jz      short __REF_2
 		cmp     word ptr [eax+0Ah], 12FFh
-		jnz     short __REF_3
+		jnz     short exitFunc
 		mov     byte ptr [eax+0Bh], 0D2h
 
 	__REF_2:
 		mov     [eax+6], ecx
 
-	__REF_3:
+	/* Restore EAX and retn */
+	exitFunc:
 		pop     eax
 		retn
 	}
