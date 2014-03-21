@@ -310,7 +310,7 @@ __declspec(naked) void __ASM_REF_3(void)
 * @encryptedArray - Array to be decrypted
 *
 * Decrypts a supplied DWORD array w/ key 0xAE1979DD
-* Returns in edx
+* Returns in edx( edx being the same type as returned by __ASM_REF_5 )
 */
 __declspec(naked) void __ASM_REF_4(void)
 {
@@ -338,7 +338,7 @@ __declspec(naked) void __ASM_REF_4(void)
 		*  esp = edi
 		*/
 		mov     edi, [esp] 			// edi = esp before the calls
-		add     edi, [esp+0Ch]  // edi = esp + 0x1c( undo stack alloc )
+		add     edi, [esp+0Ch]  // *edi = edx
 		add     esp, 1Ch
 
 		// restore edx, ecx
@@ -381,7 +381,7 @@ __declspec(naked) void __ASM_REF_4(void)
 /* __ASM_REF_5
 *  
 *	edx = DWORD( __ASM_REF_5 ) + 0x124
-* Some kind of sysinfo struct, as shown in __ASM_REF_3; line 56
+* Returns a struct of type UKNOWN_STRUCT
 */
 __declspec(naked) void __ASM_REF_5(void)
 {
@@ -455,9 +455,9 @@ __declspec(naked) void __ASM_REF_7(void)
 		push    edx 
 		call    __ASM_REF_5 // edx = DWORD (__ASM_REF_5) + 0x124
 
-		// push the first 4 bytes of edx( likely a function address )
+		// struct.isWOW64 == false( default )
 		mov     dword ptr [edx+4], 0
-		push    dword ptr [edx]
+		push    dword ptr [edx] // push the first DWORD in 
 
 		/* I'd need to see the binaries to see which function this is calling.
 		*
@@ -482,7 +482,7 @@ __declspec(naked) void __ASM_REF_7(void)
 		push    80h // 128
 		push    18h // 24
 		push    eax
-		call    __ASM_REF_5 // This shouldn't change the value of edx?
+		call    __ASM_REF_5
 
 		/* Returns in EAX, expected to be non-zero.
 		* This must alter the stack in some way, or the following is an opaque
@@ -512,8 +512,12 @@ __declspec(naked) void __ASM_REF_7(void)
 		mov     byte ptr [eax+5], 0E8h
 		mov     byte ptr [eax+0Ah], 90h
 		jmp     short exitFunc
-
+ 
 	__REF_0:
+
+		/* if eax + 7 = 0x0424548DC015FF64C2000000
+		*     struct.isWOW64 == true
+		*/
 		cmp     dword ptr [eax+7], 424548Dh
 		jnz     short exitFunc
 		cmp     dword ptr [eax+0Bh], 0C015FF64h
@@ -524,11 +528,14 @@ __declspec(naked) void __ASM_REF_7(void)
 		call    __ASM_REF_5
 		mov     dword ptr [edx+4], 1
 		pop     edx
+
+		// Prologue
 		push    esi
 		push    eax
 		push    ebx
 		push    ecx
 		push    edx
+
 		mov     esi, eax
 		mov     eax, [esi+0Ah]
 		mov     edx, [esi+0Eh]
@@ -536,6 +543,8 @@ __declspec(naked) void __ASM_REF_7(void)
 		sub     ecx, 12h
 		mov     ebx, 0E8909004h
 		lock cmpxchg8b qword ptr [esi+0Ah]
+
+		// Epilogue
 		pop     edx
 		pop     ecx
 		pop     ebx

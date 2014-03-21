@@ -66,4 +66,29 @@ void __ASM_REF_5(void);
 void __ASM_REF_6(void);
 void __ASM_REF_7(void);
 
+// This is returned by __ASM_REF_5
+typedef struct _INFO
+{
+  const char *decryptedData;// + 0
+  const bool isWOW64;       // + 4
+
+  /* Padding? */
+  const char unknownByte0;  // + 5
+  const char unknownByte1;  // + 6
+  const char unknownByte2;  // + 7
+
+  // Returns bool in EAX
+  const DWORD unknownFunc0; // + 8
+
+  // No return
+  const DWORD unknownFunc1; // + C
+
+  // Returns bool? in EAX
+  const DWORD unknownFunc2; // + 10
+
+  // Returns bool in EAX
+  const DWORD unknownFunc3; // + 14
+
+} UNKNOWN_STRUCT, *g_InfoStruct;
+
 #endif
