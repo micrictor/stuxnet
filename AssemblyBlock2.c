@@ -56,16 +56,16 @@ __declspec(naked) void __ASM_REF_3(void)
 		call    __ASM_REF_5 // Get some kind of system version struct in edx
 
 		cmp     dword ptr [edx+4], 0
-		jnz     short __REF_3
+		jnz     short __REF_3 // if system.isWOW64 { __REF_3 }
 
-		// Version < WinXP SP2
+		// 32-bit OS
 		pop     edx
-		lea     edx, [esp+8]
+		lea     edx, [esp+8] // This is an argument
 		int     2Eh             ; DOS 2+ internal - EXECUTE COMMAND
 								; DS:SI -> counted CR-terminated command string
 		jmp     short __REF_4
 
-		// Version > WinXP SP2
+		// 64-bit OS
 	__REF_3:
 		pop     edx
 		lea     edx, [esp+8]
@@ -381,7 +381,7 @@ __declspec(naked) void __ASM_REF_4(void)
 /* __ASM_REF_5
 *  
 *	edx = DWORD( __ASM_REF_5 ) + 0x124
-* Returns a struct of type UKNOWN_STRUCT
+* Returns a struct of type _SYSTEM_INFO
 */
 __declspec(naked) void __ASM_REF_5(void)
 {
@@ -394,6 +394,10 @@ __declspec(naked) void __ASM_REF_5(void)
 	}
 }
 
+/* __ASM_REF_6
+* 
+* Returns bool
+*/
 __declspec(naked) void __ASM_REF_6(void)
 {
 	__asm
@@ -403,10 +407,10 @@ __declspec(naked) void __ASM_REF_6(void)
 		push    edx
 		push    edi
 		cmp     edi, 0
-		jz      short __REF_1
+		jz      short __REF_1 // Return false
 		mov     edi, [edi+8]
 		cmp     edi, 0
-		jz      short __REF_1
+		jz      short __REF_1 // Return false
 		movzx   ebx, word ptr [edi]
 		mov     edi, [edi+4]
 		lea     ebx, [edi+ebx+2]
@@ -425,9 +429,9 @@ __declspec(naked) void __ASM_REF_6(void)
 		call    dword ptr [edx+8]
 		pop     edx
 		test    eax, eax
-		jnz     short __REF_1
+		jnz     short __REF_1 // If EAX == true { return false; }
 		inc     eax
-		jmp     short __REF_2
+		jmp     short __REF_2 // else { return true; }
 
 	__REF_1: 
 		xor     eax, eax
@@ -457,7 +461,7 @@ __declspec(naked) void __ASM_REF_7(void)
 
 		// struct.isWOW64 == false( default )
 		mov     dword ptr [edx+4], 0
-		push    dword ptr [edx] // push the first DWORD in 
+		push    dword ptr [edx] // push a pointer to decryptedData
 
 		/* I'd need to see the binaries to see which function this is calling.
 		*
@@ -485,16 +489,14 @@ __declspec(naked) void __ASM_REF_7(void)
 		call    __ASM_REF_5
 
 		/* Returns in EAX, expected to be non-zero.
-		* This must alter the stack in some way, or the following is an opaque
-		* predicate. Nothing in previous code, or the aim of the program, would lend
-		* itself to such obfuscation.
+		* 	If the return is zero, exit the function
 		*/
 		call    dword ptr [edx+10h]
 
 		pop     edx 
 		mov     edx, eax
-		pop     ecx
-		pop     eax
+		pop     ecx // 0x18; 24
+		pop     eax // 0x80, 128
 		test    edx, edx
 		jz      exitFunc // If ret = 0, exit
 

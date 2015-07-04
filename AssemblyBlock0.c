@@ -62,6 +62,7 @@ void __declspec(naked) __ASM_BLOCK0_1(void)
 	}
 }
 
+// Jump to address at top of stack
 void __declspec(naked) __ASM_BLOCK0_2(void)
 {
 	__asm

@@ -39,7 +39,7 @@ void __declspec(naked) __ASM_BLOCK1_1(void)
 	{
 		pop     edx
 		push    ecx
-		add     ecx, 4
+		add     ecx, 4 // ECX = a vtable?
 		call    __ASM_REF_7
 		pop     ecx
 		call    __ASM_BLOCK1_2
