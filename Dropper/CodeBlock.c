@@ -70,6 +70,7 @@ INT32 BLOCK4_InjectAndExecuteVirus(PASM_CODE_BLOCKS_HEADER sASMCodeBlocksHeader)
 }
 
 // 99% (C) CODE MATCH
+// Dis gets ran on virus startup  think
 INT32 BLOCK4_ExecuteLibrary(PASM_CODE_BLOCKS_HEADER sASMCodeBlocksHeader)
 {
 	FARPROC pLibraryExecEntry; // [sp+0h] [bp-Ch]@1
