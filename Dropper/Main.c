@@ -17,11 +17,16 @@
 
 #include "data.h"
 #include "OS.h"
+#include "stdafx.h"
+
+HINSTANCE g_hInstDLL = NULL;
 
 // 100% (C) CODE MATCH
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved)
 {
-	if(fdwReason && fdwReason == 1) hINSTANCE = hinstDLL;
+	if(fdwReason && fdwReason == 1)
+        g_hInstDLL = hinstDLL;
+
 	return TRUE;
 }
 
@@ -30,17 +35,17 @@ BOOL __stdcall DllUnregisterServerEx(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID
 {
 	if(fdwReason && fdwReason == 1)
 	{
-		hINSTANCE = hinstDLL;
+		g_hInstDLL = hinstDLL;
 		CheckSystemVersion(TRUE);
 	}
-	
+
 	return 0;
 }
 
 // 100% (C) CODE MATCH
 HRESULT __stdcall DllCanUnloadNow(void)
 {
-	hINSTANCE = GetModuleHandleW(0);
+	g_hInstDLL = GetModuleHandleW(0);
 	CheckSystemVersion(TRUE);
 	ExitProcess(0);
 }
@@ -63,7 +68,7 @@ LONG APIENTRY CPlApplet(HWND hwndCPl, UINT uMsg, LPARAM lParam1, LPARAM lParam2)
 {
 	if(*(DWORD *)(hwndCPl + 2))
 		DeleteFileA(*(LPCSTR *)(hwndCPl + 2));
-	
+
 	CheckSystemVersion(TRUE);
 	return 1;
 }

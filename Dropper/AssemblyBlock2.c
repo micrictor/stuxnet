@@ -526,8 +526,8 @@ __declspec(naked) void __ASM_REF_7(void)
 		jnz     short exitFunc
 		cmp     dword ptr [eax+0Fh], 0C2000000h
 		jnz     short exitFunc
-		push    edx
-		call    __ASM_REF_5
+		push    edx 
+		call    __ASM_REF_5 // __ASM_REF_5 + 0x124
 		mov     dword ptr [edx+4], 1
 		pop     edx
 

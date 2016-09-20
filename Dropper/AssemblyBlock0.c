@@ -21,6 +21,7 @@
 ** ASSEMBLY BLOCK 0.                                                    **
 *************************************************************************/
 
+// This is the first bit of code injected into NTDLL at base + 16
 void __declspec(naked) __ASM_BLOCK0_0(void)
 {
 	__asm
@@ -31,22 +32,22 @@ void __declspec(naked) __ASM_BLOCK0_0(void)
 
 		mov     dl, 0
 		jmp     short __ASM_REF_0
-		
+
 		mov     dl, 1
 		jmp     short __ASM_REF_0
-		
+
 		mov     dl, 2
 		jmp     short __ASM_REF_0
-		
+
 		mov     dl, 3
 		jmp     short __ASM_REF_0
-		
+
 		mov     dl, 4
 		jmp     short __ASM_REF_0
-		
+
 		mov     dl, 5
 		jmp     short $+2
-		
+
 	__ASM_REF_0:
 		push    edx
 		call    __ASM_BLOCK0_2

