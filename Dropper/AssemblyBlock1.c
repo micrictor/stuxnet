@@ -19,16 +19,14 @@
 
 /*************************************************************************
 ** ASSEMBLY BLOCK 1.                                                    **
-*************************************************************************/                                    
+*************************************************************************/
 
 /* This entire file seems like one giant function that calls itself to get
 * the addresses for the strings.
 */
 
-// Called during the injection process
-// Argument is the address of ASM Block 
-// 	AKA NTDLL + 16
-// ECX = sASMCodeBlocksHeader( type is ASM_CODE_BLOCKS_HEADER )
+// Called from BLOCK4_InjectCodeIntoNTDLL
+// ECX = void *__ASM_BLOCK0_0
 void __declspec(naked) __ASM_BLOCK1_0(void)
 {
 	__asm

