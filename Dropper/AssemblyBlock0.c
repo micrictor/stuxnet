@@ -21,7 +21,8 @@
 ** ASSEMBLY BLOCK 0.                                                    **
 *************************************************************************/
 
-// This is the first bit of code injected into NTDLL at base + 16
+// This replaces the builtin MSDOS stub that usually checks for compatability
+// ( the infamous "This program cannot be run in DOS mode")
 void __declspec(naked) __ASM_BLOCK0_0(void)
 {
 	__asm

